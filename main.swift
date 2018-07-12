@@ -9,16 +9,19 @@ enum AppError: Error {
 class AppConfig {
     let screen: NSScreen
     let size: NSSize
+    let alpha: CGFloat
     let url: URL
     var origin: NSPoint {
         return NSPoint(x: screen.frame.size.width - size.width, y: 0)
     }
-    var alpha: CGFloat {
-        return 0.5
-    }
 
     init<T: Collection>(_ arguments: T) throws where T.Element == String {
-        let argument = { arguments[arguments.index(arguments.startIndex, offsetBy: $0)] }
+        let argument: (Int, Int, String) -> String = { (item, count, fallback) in
+            let omitted = max(count - arguments.count, 0)
+            let offset = item - omitted
+            let index = arguments.index(arguments.startIndex, offsetBy: offset)
+            return arguments.indices.contains(index) ? arguments[index] : fallback
+        }
         let screen: (String) throws -> NSScreen = {
             let screens = NSScreen.screens
             if let index = Int($0), screens.startIndex..<screens.endIndex ~= index {
@@ -34,6 +37,13 @@ class AppConfig {
                 throw AppError.invalidArguments
             }
         }
+        let alpha: (String) throws -> CGFloat = {
+            if let alpha = Float($0), 0...1 ~= alpha {
+                return CGFloat(alpha)
+            } else {
+                throw AppError.invalidArguments
+            }
+        }
         let url: (String) throws -> URL = {
             if let url = URL(string: $0), url.scheme == "http" || url.scheme == "https" {
                 return url
@@ -41,22 +51,10 @@ class AppConfig {
                 throw AppError.invalidArguments
             }
         }
-        switch arguments.count {
-        case 1:
-            self.screen = try screen("0")
-            self.size = try size("150")
-            self.url = try url(argument(0))
-        case 2:
-            self.screen = try screen("0")
-            self.size = try size(argument(0))
-            self.url = try url(argument(1))
-        case 3:
-            self.screen = try screen(argument(0))
-            self.size = try size(argument(1))
-            self.url = try url(argument(2))
-        default:
-            throw AppError.invalidArguments
-        }
+        self.screen = try screen(argument(0, 4, "0"))
+        self.size = try size(argument(1, 4, "150"))
+        self.alpha = try alpha(argument(2, 4, "0.5"))
+        self.url = try url(argument(3, 4, ""))
     }
 }
 
@@ -122,7 +120,7 @@ try autoreleasepool {
     } catch let error as AppError {
         switch error {
         case .invalidArguments:
-            print("loaf [screen] [height] url")
+            print("loaf [screen] [height] [alpha] url")
         }
     }
 }
