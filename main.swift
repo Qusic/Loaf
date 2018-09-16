@@ -63,6 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         window.backgroundColor = NSColor.clear
+        window.alphaValue = config.alpha
         return window
     }()
     lazy var webview: WKWebView = {
