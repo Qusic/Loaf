@@ -2,60 +2,58 @@ import AppKit
 import Carbon
 import WebKit
 
-enum AppError: Error {
-    case invalidArguments
-}
-
 class AppConfig {
-    let screen: NSScreen
-    let size: NSSize
-    let alpha: CGFloat
-    let url: URL
-    var origin: NSPoint {
-        return NSPoint(x: screen.frame.size.width - size.width, y: 0)
-    }
+    let arguments: [String]
 
-    init<T: Collection>(_ arguments: T) throws where T.Element == String {
-        let argument: (Int, Int, String) -> String = { (item, count, fallback) in
+    init<T: Collection>(_ arguments: T) where T.Element == String {
+        let starting = 1
+        let count = 4
+        let arguments = arguments.dropFirst(starting)
+        let argument: (Int) -> String = { (item) in
             let omitted = max(count - arguments.count, 0)
             let offset = item - omitted
             let index = arguments.index(arguments.startIndex, offsetBy: offset)
-            return arguments.indices.contains(index) ? arguments[index] : fallback
+            return arguments.indices.contains(index) ? arguments[index] : ""
         }
-        let screen: (String) throws -> NSScreen = {
-            let screens = NSScreen.screens
-            if let index = Int($0), screens.startIndex..<screens.endIndex ~= index {
-                return screens[index]
-            } else {
-                throw AppError.invalidArguments
-            }
-        }
-        let size: (String) throws -> NSSize = {
-            if let height = Int($0), height >= 3 {
-                return NSSize(width: height * 4 / 3, height: height)
-            } else {
-                throw AppError.invalidArguments
-            }
-        }
-        let alpha: (String) throws -> CGFloat = {
-            if let alpha = Float($0), 0...1 ~= alpha {
-                return CGFloat(alpha)
-            } else {
-                throw AppError.invalidArguments
-            }
-        }
-        let url: (String) throws -> URL = {
-            if let url = URL(string: $0), url.scheme == "http" || url.scheme == "https" {
-                return url
-            } else {
-                throw AppError.invalidArguments
-            }
-        }
-        self.screen = try screen(argument(0, 4, "0"))
-        self.size = try size(argument(1, 4, "150"))
-        self.alpha = try alpha(argument(2, 4, "0.5"))
-        self.url = try url(argument(3, 4, ""))
+        self.arguments = (0..<count).map(argument)
     }
+
+    lazy var screen: NSScreen = {
+        let screens = NSScreen.screens
+        if let index = Int(arguments[0]), screens.startIndex..<screens.endIndex ~= index {
+            return screens[index]
+        } else {
+            return screens[0]
+        }
+    }()
+
+    lazy var size: NSSize = {
+        if let height = Int(arguments[1]), height > 0 {
+            return NSSize(width: height * 4 / 3, height: height)
+        } else {
+            return screen.visibleFrame.size
+        }
+    }()
+
+    lazy var origin: NSPoint = {
+        return NSPoint(x: screen.frame.size.width - size.width, y: 0)
+    }()
+
+    lazy var alpha: CGFloat = {
+        if let alpha = Float(arguments[2]), 0...1 ~= alpha {
+            return CGFloat(alpha)
+        } else {
+            return 0.5
+        }
+    }()
+
+    lazy var url: URL = {
+        if let url = URL(string: arguments[3]), url.scheme == "http" || url.scheme == "https" {
+            return url
+        } else {
+            return URL(string: "https://www.google.com/")!
+        }
+    }()
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -65,7 +63,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         window.backgroundColor = NSColor.clear
-        window.alphaValue = config.alpha
         return window
     }()
     lazy var webview: WKWebView = {
@@ -75,7 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     var eventHotkey: EventHotKeyRef?
     var eventHandler: EventHandlerRef?
-    
+
     init(_ config: AppConfig) {
         self.config = config
     }
@@ -106,21 +103,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleHotkey() {
+        window.ignoresMouseEvents = true
         window.alphaValue = window.alphaValue != config.alpha ? config.alpha : 0
     }
 }
 
-try autoreleasepool {
-    do {
-        let config = try AppConfig(CommandLine.arguments.dropFirst())
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
-        app.delegate = AppDelegate(config)
-        app.run()
-    } catch let error as AppError {
-        switch error {
-        case .invalidArguments:
-            print("loaf [screen] [height] [alpha] url")
-        }
-    }
+autoreleasepool {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    app.delegate = AppDelegate(AppConfig(CommandLine.arguments))
+    app.run()
 }
