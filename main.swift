@@ -23,27 +23,34 @@ class AppConfig {
         if let index = Int(arguments[0]), screens.startIndex..<screens.endIndex ~= index {
             return screens[index]
         } else {
-            return screens[0]
+            return NSScreen.main!
         }
     }()
 
     lazy var size: NSSize = {
         if let height = Int(arguments[1]), height > 0 {
-            return NSSize(width: height * 4 / 3, height: height)
+            let width = height * 4 / 3
+            return NSSize(width: width, height: height)
         } else {
-            return screen.visibleFrame.size
+            let screenSize = screen.visibleFrame.size
+            let width = Int(screenSize.width)
+            let height = min(Int(screenSize.height), width * 3 / 4)
+            return NSSize(width: width, height: height)
         }
     }()
 
     lazy var origin: NSPoint = {
-        return NSPoint(x: screen.frame.size.width - size.width, y: 0)
+        let screenFrame = screen.visibleFrame
+        let x = Int(screenFrame.maxX - size.width)
+        let y = Int(screenFrame.minY)
+        return NSPoint(x: x, y: y)
     }()
 
     lazy var alpha: CGFloat = {
         if let alpha = Float(arguments[2]), 0...1 ~= alpha {
             return CGFloat(alpha)
         } else {
-            return 0.5
+            return 0.1
         }
     }()
 
@@ -89,7 +96,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func setupHotkey() {
         RegisterEventHotKey(
-            UInt32(kVK_Space), UInt32(optionKey),
+            UInt32(kVK_Space), UInt32(shiftKey),
             EventHotKeyID(signature: "loaf".utf8.reduce(UInt32(0)) { ($0 << 8) + UInt32($1) }, id: 0),
             GetApplicationEventTarget(), OptionBits(kEventHotKeyNoOptions), &eventHotkey)
         InstallEventHandler(
@@ -111,7 +118,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 autoreleasepool {
     let app = NSApplication.shared
+    let config = AppConfig(CommandLine.arguments)
+    let delegate = AppDelegate(config)
     app.setActivationPolicy(.accessory)
-    app.delegate = AppDelegate(AppConfig(CommandLine.arguments))
+    app.delegate = delegate
     app.run()
 }
