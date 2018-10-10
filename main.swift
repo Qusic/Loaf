@@ -61,6 +61,12 @@ class AppConfig {
             return URL(string: "https://www.google.com/")!
         }
     }()
+
+    lazy var script: String = {
+        let url = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".loaf.js")
+        let script = try? String(contentsOf: url)
+        return script ?? ""
+    }()
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -75,6 +81,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     lazy var webview: WKWebView = {
         let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(
+            WKUserScript(source: config.script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         let webview = WKWebView(frame: .zero, configuration: configuration)
         return webview
     }()
